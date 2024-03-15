@@ -19,7 +19,6 @@ from datetime import datetime as dt
 import json
 import os
 import copy
-import asyncio
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
@@ -183,18 +182,25 @@ load_dotenv()
 intents = discord.Intents().all()
 client = commands.Bot(command_prefix=',', intents=intents)
 
-def start(discord_bot_token, notifications_channel, notifications_frequency, blacklist=[]):
+def start(discord_bot_token, notifications_channel, notifications_frequency, start_time, end_time, blacklist=[]):
     """Function to start the discord bot portion.
     The task_loop needs NOTIFICATIONS_CHANNEL to know which channel to write to, and the
     NOTIFICATIONS_FREQUENCY (in seconds) to know how frequently to send messages.
+    START_TIME tells the bot when to start NOT sending messages,
+    END_TIME tells the bot when to end NOT sending messages. Basically, the bot will silence itself from [START_TIME, END_TIME].
+        For example, START_TIME = 1 and END_TIME = 6 blocks the bot from messaging you during the period of 1 - 6 AM.
     BLACKLIST prevents messages from being read from other channels in a server.
     DISCORD_BOT_TOKEN is used to start the bot."""
 
     @tasks.loop(seconds=notifications_frequency)
     async def task_loop():
+        curr_hour = int(get_time("%H")) #gets the hour only
         channel = client.get_channel(int(notifications_channel))
-        print(f"DEBUG: Loop triggered in {channel}. If you see None there, something is wrong.")
-        await channel.send(f"This is a reminder message. {init_tasks()}")
+        if hour >= start_time and hour <= end_time:
+            print(f"DEBUG: Loop triggered in {channel}. If you see None there, something is wrong.\nThe hour is {hour}, and thus a message was not sent.")
+        else:
+            print(f"DEBUG: Loop triggered in {channel}. If you see None there, something is wrong.\nThe hour is {hour}, and thus a message was sent.")
+            await channel.send(f"This is a reminder message. {init_tasks()}")
 
     @client.event
     async def on_ready():
@@ -214,21 +220,21 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                 init_tasks() #if so, then create
             if 'help' in message.content:
                 response = "Commands available to manage tasks are 'create_task', 'edit_task', 'delete_task', 'show_tasks', and 'toggle_status'."
-                response += "\n- 'create_task' allows you to create daily tasks by providing their descriptions."
-                response += "\n- 'edit_task' allows you to edit pre-existing daily tasks by overwriting their descriptions."
-                response += "\n- 'delete_task' allows you to delete pre-existing daily tasks."
-                response += "\n- 'show_task' allows you to view all daily tasks, as well as their statuses."
-                response += "\n- 'toggle_status' allow you to toggle the status of a pre-existing daily task between done (✓) or not done (x)."
+                response += "\n- 'create_task' or '.cta' allows you to create daily tasks by providing their descriptions."
+                response += "\n- 'edit_task' of '.eta' allows you to edit pre-existing daily tasks by overwriting their descriptions."
+                response += "\n- 'delete_task' or '.dta'  allows you to delete pre-existing daily tasks."
+                response += "\n- 'show_task' or '.sta' allows you to view all daily tasks, as well as their statuses."
+                response += "\n- 'toggle_status' or '.ts' allow you to toggle the status of a pre-existing daily task between done (✓) or not done (x)."
                 response += "\n\nCommands to edit templates include 'create_template', 'edit_template', 'delete_template', 'show_template', and 'load_template'."
-                response += "\n- 'create_template' allows you to create or add tasks to a template for a specific day of the week by providing their descriptions."
-                response += "\n- 'edit_template' allows you to edit pre-existing template tasks by overwriting their descriptions."
-                response += "\n- 'delete_template' allows you to delete pre-existing template tasks."
-                response += "\n- 'show_template' allows you to view the templates for every day of the week."
-                response += "\n- 'load_template' allows you to load in the tasks from a template, if you have already created your daily task beforehand."
+                response += "\n- 'create_template' or '.cte' allows you to create or add tasks to a template for a specific day of the week by providing their descriptions."
+                response += "\n- 'edit_template' or '.ete' allows you to edit pre-existing template tasks by overwriting their descriptions."
+                response += "\n- 'delete_template' or '.dte' allows you to delete pre-existing template tasks."
+                response += "\n- 'show_template' or '.ste' allows you to view the templates for every day of the week."
+                response += "\n- 'load_template' or '.lte' allows you to load in the tasks from a template, if you have already created your daily task beforehand."
 
-            elif 'show_task' in message.content:
+            elif 'show_task' in message.content or '.sta' in message.content:
                 response = init_tasks()
-            elif 'create_task' in message.content:
+            elif 'create_task' in message.content or '.cta' in message.content:
                 await message.channel.send("Please enter the description of the task you want to add. To add multiple tasks, separate each entry with a semi-colon. Ex: Wake up; Eat breakfast; etc.") #wait for further input
                 user_input = await client.wait_for('message', check=check)
                 tasks_list = user_input.content.split("; ")
@@ -237,7 +243,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                     list_write(curr_date, create_task(list_read(curr_date), each)) #write to disk
                     response += f"\nTask with description '{each}' has been created."
                 response += f"\n\nYour current list of tasks is as follows:\n\n{make_text(list_read(curr_date))}"
-            elif 'delete_task' in message.content:
+            elif 'delete_task' in message.content or '.dta' in message.content:
                 curr_list = list_read(curr_date)
                 if curr_list:
                     await message.channel.send(make_text(curr_list))
@@ -258,7 +264,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                     response += f"\n\nYour current list of tasks is as follows:\n\n{make_text(list_read(curr_date))}"
                 else:
                     response = "The tasks list is empty or nonexistent. Create one now using 'create_tasks'."
-            elif 'edit_task' in message.content:
+            elif 'edit_task' in message.content or '.eta' in message.content:
                 curr_list = list_read(curr_date)
                 if curr_list:
                     await message.channel.send(make_text(curr_list))
@@ -278,7 +284,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                         response = f"Task id must be a number."
                 else:
                     response = "The tasks list is empty or nonexistent. Create one now using 'create_tasks'."
-            elif 'toggle_status' in message.content:
+            elif 'toggle_status' in message.content or '.ts' in message.content:
                 await message.channel.send(make_text(list_read(curr_date)))
                 await message.channel.send("Please enter the ID number of the task you want to change the status of.") #wait for user input
                 user_input = await client.wait_for('message', check=check)
@@ -292,7 +298,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                         response = f"Task with id {user_input.content} was not found. No action was taken."
                 else:
                     response = f"Task id must be a number."
-            elif 'create_template' in message.content:
+            elif 'create_template' in message.content or '.cte' in message.content:
                 await message.channel.send("Please enter the day you want to create a template for.\nDays accepted include Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.") #wait for further input
                 user_input_day = await client.wait_for('message', check=check)
                 if user_input_day.content in ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']:
@@ -304,7 +310,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                     response += f"\n\nThe template's list of tasks is as follows:\n\n{make_text(list_read(user_input_day.content))}"
                 else:
                     response = "Input does not match one of the valid days."
-            elif 'delete_template' in message.content:
+            elif 'delete_template' in message.content or '.dte' in message.content:
                 await message.channel.send("Please enter the day's template you want to edit.\nDays accepted include Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.") #wait
                 user_input_day = await client.wait_for('message', check=check)
                 if user_input_day.content in ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']:
@@ -328,7 +334,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                         response = f"A template for {user_input_day.content} does not exist or is blank. Create one by typing 'create_template'."
                 else:
                     response = "Input does not match one of the valid days."
-            elif 'edit_template' in message.content:
+            elif 'edit_template' in message.content or '.ete' in message.content:
                 await message.channel.send("Please enter the day's template you want to edit.\nDays accepted include Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.") #wait
                 user_input_day = await client.wait_for('message', check=check)
                 if user_input_day.content in ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']:
@@ -352,10 +358,10 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
                         response = f"A template for {user_input_day.content} does not exist or is blank. Create one by typing 'create_template'."
                 else:
                     response = "Input does not match one of the valid days."
-            elif 'load_template' in message.content:
+            elif 'load_template' in message.content or '.lte' in message.content:
                 response = load_template()
                 response += f"\n\nYour current list of tasks is as follows:\n\n{make_text(list_read(curr_date))}"
-            elif 'show_template' in message.content:
+            elif 'show_template' in message.content or '.ste' in message.content:
                 response=""
                 for day in ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']:
                     if os.path.isfile(day):
@@ -374,5 +380,6 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, bla
 
     client.run(discord_bot_token)
 
-###
-start(os.getenv('DISCORD_API_KEY'), os.getenv('NOTIFICATIONS'), 1800, os.getenv('BLACKLIST'))
+### Example way to start the bot
+
+start(os.getenv('DISCORD_API_KEY'), os.getenv('NOTIFICATIONS'), 1800, 1, 6, os.getenv('BLACKLIST'))
