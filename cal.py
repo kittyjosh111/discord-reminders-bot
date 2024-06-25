@@ -194,7 +194,7 @@ def start(discord_bot_token, notifications_channel, notifications_frequency, sta
 
     @tasks.loop(seconds=notifications_frequency)
     async def task_loop():
-        curr_hour = int(get_time("%H")) #gets the hour only
+        hour = int(get_time("%H")) #gets the hour only
         channel = client.get_channel(int(notifications_channel))
         if hour >= start_time and hour <= end_time:
             print(f"DEBUG: Loop triggered in {channel}. If you see None there, something is wrong.\nThe hour is {hour}, and thus a message was not sent.")
